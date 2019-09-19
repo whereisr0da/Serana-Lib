@@ -1,4 +1,4 @@
-## Serana
+# Serana
 
 Serana is a .NET library that can parse windows executables
 
