@@ -44,6 +44,11 @@ namespace Serana.Engine.Headers.Types
 
         public bool is32bit;
 
+        public NumericEntry(EntrySize size)
+        {
+            this.size = size;
+        }
+
         public NumericEntry(string name, int offset, EntrySize size)
         {
             this.name = name;
@@ -58,12 +63,25 @@ namespace Serana.Engine.Headers.Types
             this.is32bit = is32bit;
 
             if (list.Count < 1)
+            {
                 this.offset = offset;
+            }
+
+            // insure conditions check order
             else
             {
                 Entry lastEntry = ((Entry)list[list.Count - 1]);
 
-                this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                {
+                    DataEntry lastEntryData = (DataEntry)lastEntry;
+
+                    this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                }
+                else
+                {
+                    this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                }
             }
 
             this.size = size;
@@ -78,11 +96,25 @@ namespace Serana.Engine.Headers.Types
             this.is32bit = is32bit;
 
             if (list.Count < 1)
+            {
                 this.offset = offset;
+            }
+
+            // insure conditions check order
             else
             {
-                Entry lastEntry = list[list.Count - 1];
-                this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                Entry lastEntry = ((Entry)list[list.Count - 1]);
+
+                if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                {
+                    DataEntry lastEntryData = (DataEntry)lastEntry;
+
+                    this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                }
+                else
+                {
+                    this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                }
             }
 
             this.size = size32;
@@ -123,6 +155,14 @@ namespace Serana.Engine.Headers.Types
             return this.value64;
         }
 
+        public void setValue(int value)
+        {
+            if (!is32bit && changeFor64)
+                this.value64 = value;
+            else
+                this.value = value;
+        }
+
         public int getValue()
         {
             return (!is32bit && changeFor64) ? (int)this.value64 : this.value;
@@ -158,10 +198,9 @@ namespace Serana.Engine.Headers.Types
 
         public virtual void readValue(Reader reader)
         {
-            EntrySize currentSize = getEntrySize();
             int currentOffset = getOffset();
 
-            switch (currentSize)
+            switch (getEntrySize())
             {
                 case EntrySize._8Bits:
                     this.value = reader.readByte(currentOffset);
@@ -178,6 +217,12 @@ namespace Serana.Engine.Headers.Types
                 default:
                     break;
             }
+        }
+
+        public static NumericEntry operator +(NumericEntry left, int right)
+        {
+            left.setValue(left.getValue() + right);
+            return left;
         }
     }
 }

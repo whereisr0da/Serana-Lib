@@ -1,5 +1,5 @@
 ﻿/**
- * Serana - Copyright (c) 2018 - 2020 r0da [r0da@protonmail.ch]
+ * Serana - Copyright (c) 2018 - 2019 r0da [r0da@protonmail.ch]
  *
  * This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
  * To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ or send a letter to
@@ -23,11 +23,11 @@
  * No warranties are given.
  */
 
-namespace Serana.Engine.Headers
+namespace Serana.Engine.Section.Types
 {
-    public static class HeaderSymbols
+    public enum SectionTypes
     {
-        public static readonly byte[] MSDOS_HEADER = new byte[] { 0x4D, 0x5A };
-        public static readonly byte[] PE_HEADER = new byte[] { 0x50, 0x45, 0x00, 0x00 };
+        CODE_SECTION,
+        DATA_SECTION
     }
 }

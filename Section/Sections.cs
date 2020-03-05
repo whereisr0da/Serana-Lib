@@ -1,5 +1,5 @@
 ﻿/**
- * Serana - Copyright (c) 2018 - 2019 r0da [r0da@protonmail.ch]
+ * Serana - Copyright (c) 2018 - 2020 r0da [r0da@protonmail.ch]
  *
  * This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
  * To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ or send a letter to
@@ -26,12 +26,10 @@
 using Serana.Engine.Headers;
 using Serana.Engine.Headers.Types;
 using Serana.Engine.Streams;
+using Serana.Engine.Section.Types;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Serana.Engine.Section
 {
@@ -41,14 +39,20 @@ namespace Serana.Engine.Section
 
         private Header header;
 
-        public readonly int sectionHeaderBaseAddress;
-
-        public readonly int sectionCount;
+        // simple proxy
+        public int sectionHeaderBaseAddress;
 
         public readonly List<SectionEntry> sectionEntries;
 
         public List<Entry> entries;
 
+        private bool isInMemory = false;
+
+        /// <summary>
+        /// Create Section collector from file
+        /// </summary>
+        /// <param name="reader"></param>
+        /// <param name="header"></param>
         public Sections(Reader reader, Header header)
         {
             this.reader = reader;
@@ -58,57 +62,320 @@ namespace Serana.Engine.Section
 
             this.entries = new List<Entry>();
 
-            this.sectionHeaderBaseAddress = header.dataDirectoryHeader.endOfHeader;
+            this.sectionHeaderBaseAddress = header.sectionHeaderBaseAddress;
 
-            this.sectionCount = header.peHeader.NumberOfSection.getValue();
-
-            for (int i = 0; i < this.sectionCount; i++)
+            for (int i = 0; i < this.header.peHeader.NumberOfSection.getValue(); i++)
             {
-                sectionEntries.Add(processSection());
-            }
-
-            foreach (var item in entries)
-            {
-                item.readValue(this.reader);
+                this.sectionEntries.Add(new SectionEntry(this.entries, this.reader, this.header));
             }
         }
 
-        private SectionEntry processSection()
+        /// <summary>
+        /// Create Section collector from memory
+        /// </summary>
+        /// <param name="header"></param>
+        public Sections(Header header)
         {
-            DataEntry name = new DataEntry(entries, this.header.is32Bit, "name", this.sectionHeaderBaseAddress, SectionSymbols.SECTION_NAME_SIZE, EntrySize._8Bits);
+            this.header = header;
 
-            NumericEntry virtualSize = new NumericEntry(entries, this.header.is32Bit, "virtualSize", this.sectionHeaderBaseAddress, EntrySize._32Bits);
+            this.sectionEntries = new List<SectionEntry>();
 
-            NumericEntry virtualAddress = new NumericEntry(entries, this.header.is32Bit, "virtualAddress", this.sectionHeaderBaseAddress, EntrySize._32Bits);
+            this.entries = new List<Entry>();
 
-            NumericEntry sizeOfRawData = new NumericEntry(entries, this.header.is32Bit, "sizeOfRawData", this.sectionHeaderBaseAddress, EntrySize._32Bits);
+            this.sectionHeaderBaseAddress = header.sectionHeaderBaseAddress;
 
-            NumericEntry pointerToRawData = new NumericEntry(entries, this.header.is32Bit, "pointerToRawData", this.sectionHeaderBaseAddress, EntrySize._32Bits);
-
-            NumericEntry pointerToRelocations = new NumericEntry(entries, this.header.is32Bit, "pointerToRelocations", this.sectionHeaderBaseAddress, EntrySize._32Bits);
-
-            NumericEntry pointerToLineNumbers = new NumericEntry(entries, this.header.is32Bit, "pointerToLineNumbers", this.sectionHeaderBaseAddress, EntrySize._32Bits);
-
-            NumericEntry numberOfRelocations = new NumericEntry(entries, this.header.is32Bit, "numberOfRelocations", this.sectionHeaderBaseAddress, EntrySize._16Bits);
-
-            NumericEntry numberOfLinenumbers = new NumericEntry(entries, this.header.is32Bit, "numberOfLinenumbers", this.sectionHeaderBaseAddress, EntrySize._16Bits);
-
-            NumericEntry characteristics = new NumericEntry(entries, this.header.is32Bit, "characteristics", this.sectionHeaderBaseAddress, EntrySize._32Bits);
-
-            return new SectionEntry(reader, name, virtualSize, virtualAddress, sizeOfRawData, pointerToRawData, pointerToRelocations,
-                pointerToLineNumbers, numberOfRelocations, numberOfLinenumbers, characteristics);
+            this.isInMemory = true;
         }
 
-        // TODO
-        private void addSection(byte[] data)
+        /// <summary>
+        /// Get the section data start address
+        /// NOTE : dynamic so it's a function
+        /// </summary>
+        /// <returns>The address of the sections data</returns>
+        public int getSectionDataBaseAddress()
         {
+            // there is 16 bytes of padding before section's data
+            return this.sectionHeaderBaseAddress + exportHeaders().Count + 16;
+        }
 
+        /// <summary>
+        /// Get the last section of the executable
+        /// </summary>
+        /// <returns>SectionEntry of the last section</returns>
+        public SectionEntry getLastEntry()
+        {
+            return this.sectionEntries[this.header.peHeader.NumberOfSection.getValue() - 1];
+        }
+
+        /// <summary>
+        /// Get all code typed sections
+        /// </summary>
+        /// <returns>List of code typed section</returns>
+        public List<SectionEntry> getCodeSections()
+        {
+            return this.sectionEntries.FindAll(delegate (SectionEntry s) { return s.type == SectionTypes.CODE_SECTION; });
+        }
+
+        /// <summary>
+        /// Get all data typed sections
+        /// </summary>
+        /// <returns>List of data typed section</returns>
+        public List<SectionEntry> getDataSections()
+        {
+            return this.sectionEntries.FindAll(delegate (SectionEntry s) { return s.type == SectionTypes.DATA_SECTION; });
+        }
+
+        /// <summary>
+        /// Add a new section to executable
+        /// NOTE : if is the first section the user has to handle the virtualAddress
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="data"></param>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        public SectionEntry addSection(string name, byte[] data, SectionTypes type)
+        {
+            // TODO : care about the file alignment
+
+            // setup the virtual address of the section
+            int virtualAddressBase = type == SectionTypes.CODE_SECTION ?
+                this.header.optionalHeader.BaseOfCode.getValue() :
+                this.header.optionalHeader.BaseOfData.getValue();
+
+            // create the section
+            SectionEntry section = new SectionEntry(this.entries, this.header);
+
+            // set the name
+            section.header.setName(name);
+
+            bool isFirstSection = this.header.peHeader.NumberOfSection.getValue() < 1;
+
+            // there is already a section
+            if (!isFirstSection)
+            {
+                // fix all old section's headers
+                foreach (SectionEntry item in this.sectionEntries)
+                {
+                    // we added a new header in the section headers
+                    // so we have to fix all raw addresses 
+                    // by incresing all pointers by the length of the new header
+                    item.header.pointerToRawData += section.header.export().Count;
+                }
+
+                SectionEntry lastSection = this.getLastEntry();
+
+                int newSectionAddress = lastSection.header.pointerToRawData.getValue() 
+                    + lastSection.header.sizeOfRawData.getValue();
+
+                // set the new section address
+                section.header.pointerToRawData.setValue(newSectionAddress);
+            }
+
+            // the PE is empty
+            else
+            {
+                // 16 bytes of padding before section's data
+                int newSectionAddress = this.sectionHeaderBaseAddress + section.header.export().Count + 16;
+
+                // set the new section address
+                section.header.pointerToRawData.setValue(newSectionAddress);
+            }
+
+            // set the section size
+            section.header.sizeOfRawData.setValue(data.Length);
+
+            // zero if there is no relocation
+            section.header.pointerToRelocations.setValue(0);
+            section.header.numberOfRelocations.setValue(0);
+            section.header.numberOfLinenumbers.setValue(0);
+
+            // set the virtual address
+            // TODO : clean the code
+            if (!isFirstSection)
+            {
+                bool existCodeSection = getCodeSections().Count > 0;
+                bool existDataSection = getDataSections().Count > 0;
+
+                // fix 64 (no base of data)
+
+                int virtualAddress = 0;
+
+                // TODO : clean the code
+                if ((existCodeSection && type == SectionTypes.CODE_SECTION) ||
+                    (existDataSection && type == SectionTypes.DATA_SECTION))
+                {
+                    virtualAddress = calcVirtualAddressDynamic(type);
+                }
+                else if((existCodeSection && type == SectionTypes.DATA_SECTION) ||
+                        (existDataSection && type == SectionTypes.CODE_SECTION))
+                {
+                    if ((existDataSection && type == SectionTypes.DATA_SECTION) ||
+                        (existCodeSection && type == SectionTypes.CODE_SECTION))
+                    {
+                        virtualAddress = calcVirtualAddressDynamic(type);
+                    }
+
+                    else if ((type == SectionTypes.CODE_SECTION && !existCodeSection) ||
+                             (type == SectionTypes.DATA_SECTION && !existDataSection))
+                    {
+                        virtualAddress = virtualAddressBase;
+                    }
+                    else
+                    {
+                        throw new Exception("New case not handled, please report me it");
+                    }
+                }
+                else
+                {
+                    throw new Exception("New case not handled, please report me it");
+                }
+
+                if(virtualAddress == 0)
+                    throw new Exception("New case not handled, please report me it");
+
+                section.header.virtualAddress.setValue(virtualAddress);
+            }
+            else
+            {
+                // set the virtualAddressBase to BaseOfCode or BaseOfData by default
+                section.header.virtualAddress.setValue(virtualAddressBase);
+            }
+
+            // set the section virtual size as the same as raw size
+            // not optimized but I can't find an accurate size without analysing the data
+            section.header.virtualSize.setValue(data.Length);
+
+            // set characteristics
+            // TODO : fix uint
+
+            // the section should be read by default
+            section.header.characteristics += (int)SectionFlags.IMAGE_SCN_MEM_READ;
+
+            // flag related to code sections
+            if (type == SectionTypes.CODE_SECTION)
+            {
+                section.header.characteristics += (int)SectionFlags.IMAGE_SCN_CNT_CODE;
+                section.header.characteristics += (int)SectionFlags.IMAGE_SCN_MEM_EXECUTE;
+            }
+
+            // flag related to "data" sections (not specificly ".data" sections)
+            else
+            {
+                section.header.characteristics += (int)SectionFlags.IMAGE_SCN_CNT_INITIALIZED_DATA;
+            }
+
+            // set the type
+            // TODO : fix order characteristics check (see how it handle .data dir)
+            section.type = type;
+
+            // set the data of the section
+            section.rawData = data;
+
+            // adding the section to the list
+            this.sectionEntries.Add(section);
+
+            // increase number of section
+            this.header.peHeader.NumberOfSection += 1;
+
+            // header fixing part
+            updateHeader(type);
+
+            // return the section object
+            return section;
+        }
+
+        /// <summary>
+        /// Update the headers when adding a section to the executable
+        /// </summary>
+        /// <param name="type">The section type</param>
+        private void updateHeader(SectionTypes type)
+        {
+            int virtualAddressBase = type == SectionTypes.CODE_SECTION ?
+                this.header.optionalHeader.BaseOfCode.getValue() :
+                this.header.optionalHeader.BaseOfData.getValue();
+
+            bool isFirstSection = this.header.peHeader.NumberOfSection.getValue() < 1;
+
+            // fix PE header size in the header
+            this.header.optionalHeader.SizeOfHeaders.setValue(getSectionDataBaseAddress());
+
+            int sizeOfAllCodeSections = 0;
+            int sizeOfAllDataSections = 0;
+
+            // collects all sizes
+            getCodeSections().ForEach(s => sizeOfAllCodeSections += s.header.sizeOfRawData.getValue());
+            getDataSections().ForEach(s => sizeOfAllDataSections += s.header.sizeOfRawData.getValue());
+
+            // update all sections size in PE header
+            this.header.optionalHeader.SizeOfCode.setValue(sizeOfAllCodeSections);
+            this.header.optionalHeader.SizeOfInitializedData.setValue(sizeOfAllDataSections);
+
+            // update the the image size
+            if (!isFirstSection)
+            {
+                // last section virtualAddress = size of virtual section's allocation segment
+                // + padding due to the last section size
+
+                int sizeOfImage = getLastEntry().header.virtualAddress.getValue() + getLastEntry().header.virtualSize.getValue();
+
+                this.header.optionalHeader.SizeOfImage.setValue(sizeOfImage);
+            }
+            else
+            {
+                // set the default image size
+                this.header.optionalHeader.SizeOfImage.setValue(virtualAddressBase);
+            }
+        }
+
+        private int calcVirtualAddressPadding(SectionTypes type)
+        {
+            List<SectionEntry> selectedSections = type == SectionTypes.CODE_SECTION ? getCodeSections() : getDataSections();
+
+            SectionEntry lastSection = selectedSections[selectedSections.Count - 1];
+
+            // by default the padding is 1000
+            float paddingAmount = lastSection.header.sizeOfRawData.getValue() / 1000;
+
+            int padding = this.header.optionalHeader.SectionAlignment.getValue();
+
+            if (paddingAmount > 0)
+            {
+                padding = ((int)paddingAmount) * this.header.optionalHeader.SectionAlignment.getValue();
+            }
+
+            return padding;
+        }
+
+        // TODO : clean the code
+        private int calcVirtualAddressDynamic(SectionTypes type)
+        {
+            List<SectionEntry> selectedSections = type == SectionTypes.CODE_SECTION ? getCodeSections() : getDataSections();
+
+            SectionEntry lastSection = selectedSections[selectedSections.Count - 1];
+
+            return lastSection.header.virtualAddress.getValue() + calcVirtualAddressPadding(type);
+        }
+
+        /// <summary>
+        /// Set the entrypoint in the executable
+        /// </summary>
+        /// <param name="codeSection"></param>
+        /// <param name="entrypointOffsetInSection"></param>
+        public void setEntrypoint(SectionEntry codeSection, int entrypointOffsetInSection)
+        {
+            if (codeSection.type != SectionTypes.CODE_SECTION)
+                throw new Exception("Trying to set the entrypoint on a section that is not a code section");
+
+            int entrypointVirtual = codeSection.header.virtualAddress.getValue() + entrypointOffsetInSection;
+
+            // set the entrypoint
+            this.header.optionalHeader.AddressOfEntryPoint.setValue(entrypointVirtual);
         }
 
         // TODO
         private void removeSection(int id)
         {
-            this.sectionEntries.Remove(getSectionFromId(id));
+            this.sectionEntries.Remove(getSection(id));
 
             // section describe the header and data is grabbed from the object so
             // dont need to remove header
@@ -124,33 +391,65 @@ namespace Serana.Engine.Section
             // this.header.peHeader.NumberOfSection - 1
         }
 
-        public SectionEntry getSectionFromId(int id)
+        /// <summary>
+        /// Know if a section is present by his name
+        /// </summary>
+        /// <param name="name">Name of the function</param>
+        /// <returns>True if exist, otherwise false</returns>
+        public bool isSectionPresent(string name)
+        {
+            return getSection(name) != null;
+        }
+
+        /// <summary>
+        /// Get section object from name
+        /// </summary>
+        /// <param name="name">section name</param>
+        /// <returns>the result section object, return null if not found</returns>
+        public SectionEntry getSection(string name)
         {
             SectionEntry result = null;
 
-            this.sectionEntries.ForEach(s => { if (s.sectionId == id) result = s; });
+            this.sectionEntries.ForEach(s => { if (s.header.name.ToString() == name) result = s; });
 
             return result;
         }
 
-        public List<byte> export(int sectionHeaderOffset)
+        /// <summary>
+        /// Get section object from ordinal
+        /// </summary>
+        /// <param name="ordinal">section ordinal</param>
+        /// <returns>the result section object, return null if not found</returns>
+        public SectionEntry getSection(int ordinal)
         {
-            List<byte> section= new List<byte>();
-            
-            // sections headers
-            foreach (Entry item in entries)
-            {
-                Utils.addArrayToList<byte>(section, item.export());
-            }
+            SectionEntry result = null;
 
+            this.sectionEntries.ForEach(s => { if (s.sectionId == ordinal) result = s; });
+
+            return result;
+        }
+
+        /// <summary>
+        /// Export all the data of the section block
+        /// </summary>
+        /// <returns>Array of byte that represent the sections</returns>
+        public List<byte> exportSectionsData()
+        {
+            if (this.header.peHeader.NumberOfSection.getValue() < 1)
+                throw new Exception("Trying to export sections without sections");
+
+            List<byte> section = new List<byte>();
+
+            int sectionHeaderSize = exportHeaders().Count;
+             
             // 16 bytes before sections
             Utils.addArrayToList<byte>(section, new byte[16]);
 
-            int sectionStartAddress = sectionHeaderOffset + section.Count;
+            int sectionStartAddress = this.header.sectionHeaderBaseAddress + section.Count + sectionHeaderSize;
 
-            SectionEntry lastSection = this.sectionEntries[this.sectionCount - 1];
+            SectionEntry lastSection = this.getLastEntry();
 
-            int sectionBufferEndAddress = (int)lastSection.pointerToRawData.getValue() + (int)lastSection.sizeOfRawData.getValue();
+            int sectionBufferEndAddress = (int)lastSection.header.pointerToRawData.getValue() + (int)lastSection.header.sizeOfRawData.getValue();
 
             int sectionBufferSize = sectionBufferEndAddress - sectionStartAddress;
 
@@ -162,7 +461,8 @@ namespace Serana.Engine.Section
             {
                 byte[] sectionBuffer = item.getSectionBuffer();
 
-                int rawAddress = item.pointerToRawData.getValue() - sectionStartAddress;
+                // the raw address already respect the file alignment
+                int rawAddress = item.header.pointerToRawData.getValue() - sectionStartAddress;
 
                 // write section in the right address
                 for (int i = 0; i < sectionBuffer.Length; i++)
@@ -171,10 +471,41 @@ namespace Serana.Engine.Section
                 }
             }
 
-            // add the section buffer
+            // add the sections buffer
             Utils.addArrayToList<byte>(section, sectionBuffers);
 
             return section;
         }
+
+        public List<byte> exportHeaders()
+        {
+            List<byte> sectionsHeaderBuffer = new List<byte>();
+
+            foreach (Entry e in entries)
+            {
+                Utils.addArrayToList<byte>(sectionsHeaderBuffer, e.export());
+            }
+
+            return sectionsHeaderBuffer;
+        }
+
+        /// <summary>
+        /// Get a section from a vitual address that is in the mapped virtual memory
+        /// </summary>
+        /// <param name="address">The virtual address</param>
+        /// <returns>The section that contain this address, return null if not found</returns>
+        public SectionEntry getSectionFromVirtualAddress(int address)
+        {
+            SectionEntry section = null;
+
+            this.sectionEntries.ForEach(s => {
+
+                if (address >= s.header.virtualAddress.getValue() &&
+                    address < (s.header.virtualAddress.getValue() + s.header.virtualSize.getValue()))
+                { section = s; }
+            });
+
+            return section;
+        } 
     }
 }

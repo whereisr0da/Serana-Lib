@@ -1,5 +1,5 @@
 ﻿/**
- * Serana - Copyright (c) 2018 - 2019 r0da [r0da@protonmail.ch]
+ * Serana - Copyright (c) 2018 - 2020 r0da [r0da@protonmail.ch]
  *
  * This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
  * To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ or send a letter to
@@ -29,35 +29,43 @@ using System.Collections.Generic;
 
 namespace Serana.Engine.Headers
 {
+    /// <summary>
+    /// Object that contain all Data directory headers informations
+    /// </summary>
     public class DataDirectoryHeader
     {
         private Reader reader;
 
         private OptionalHeader opHeader;
 
-        public readonly int headerBaseAddress;
+        public int headerBaseAddress;
 
-        public readonly DataDirectory exportDirectory;
-        public readonly DataDirectory importDirectory;
-        public readonly DataDirectory resourceDirectory;
-        public readonly DataDirectory exceptionDirectory;
-        public readonly DataDirectory securityDirectory;
-        public readonly DataDirectory baseRelocationDirectory;
-        public readonly DataDirectory debugDirectory;
-        public readonly DataDirectory architectureDirectory;
-        public readonly DataDirectory relativesAddressDirectory;
-        public readonly DataDirectory tlsDirectory;
-        public readonly DataDirectory loadConfigDirectory;
-        public readonly DataDirectory boundImportsDirectory;
-        public readonly DataDirectory importTableAddressDirectory;
-        public readonly DataDirectory delayLoadDescriptorDirectory;
-        public readonly DataDirectory netHeaderDirectory;
+        public DataDirectory exportDirectory;
+        public DataDirectory importDirectory;
+        public DataDirectory resourceDirectory;
+        public DataDirectory exceptionDirectory;
+        public DataDirectory securityDirectory;
+        public DataDirectory baseRelocationDirectory;
+        public DataDirectory debugDirectory;
+        public DataDirectory architectureDirectory;
+        public DataDirectory relativesAddressDirectory;
+        public DataDirectory tlsDirectory;
+        public DataDirectory loadConfigDirectory;
+        public DataDirectory boundImportsDirectory;
+        public DataDirectory importTableAddressDirectory;
+        public DataDirectory delayLoadDescriptorDirectory;
+        public DataDirectory netHeaderDirectory;
 
-        public readonly int endOfHeader;
+        public int endOfHeader;
 
         public List<Entry> entries;
         public List<DataDirectory> dirs;
 
+        /// <summary>
+        /// Create a Data directory header from file
+        /// </summary>
+        /// <param name="reader">The reader</param>
+        /// <param name="opHeader">The optional header</param>
         public DataDirectoryHeader(Reader reader, OptionalHeader opHeader)
         {
             this.reader = reader;
@@ -69,8 +77,99 @@ namespace Serana.Engine.Headers
 
             headerBaseAddress = this.opHeader.endOfHeader;
 
-            // 16 dirs in PE files
+            setupStruct();
 
+            ///
+            /// init values
+            /// 
+
+            foreach (var item in entries)
+            {
+                item.readValue(this.reader);
+            }
+
+            int sizeTmp = headerBaseAddress;
+
+            entries.ForEach(e => sizeTmp += (((int)e.getEntrySize()) / 8)*2);
+
+            this.endOfHeader = sizeTmp + 0x8;
+        }
+
+        /// <summary>
+        /// Create a Data directory header from memory
+        /// </summary>
+        /// <param name="opHeader">The optional header</param>
+        public DataDirectoryHeader(OptionalHeader opHeader)
+        {
+            this.entries = new List<Entry>();
+            this.dirs = new List<DataDirectory>();
+
+            this.opHeader = opHeader;
+
+            headerBaseAddress = this.opHeader.endOfHeader;
+
+            setupStruct();
+
+            ///
+            /// init values
+            /// 
+
+            // exe as default, so export anything
+            this.exportDirectory.setVirtualAddress(0);
+            this.exportDirectory.setSize(0);
+
+            // defined by the user
+            this.importDirectory.setVirtualAddress(0);
+            this.importDirectory.setSize(0);
+            this.resourceDirectory.setVirtualAddress(0);
+            this.resourceDirectory.setSize(0);
+            this.exceptionDirectory.setVirtualAddress(0);
+            this.exceptionDirectory.setSize(0);
+            this.securityDirectory.setVirtualAddress(0);
+            this.securityDirectory.setSize(0);
+            this.baseRelocationDirectory.setVirtualAddress(0);
+            this.baseRelocationDirectory.setSize(0);
+
+            // debug info
+            this.debugDirectory.setVirtualAddress(0);
+            this.debugDirectory.setSize(0);
+
+            this.architectureDirectory.setVirtualAddress(0);
+            this.architectureDirectory.setSize(0);
+            this.relativesAddressDirectory.setVirtualAddress(0);
+            this.relativesAddressDirectory.setSize(0);
+            this.tlsDirectory.setVirtualAddress(0);
+            this.tlsDirectory.setSize(0);
+
+            // null as default
+            this.loadConfigDirectory.setVirtualAddress(0);
+            this.loadConfigDirectory.setSize(0);
+            this.boundImportsDirectory.setVirtualAddress(0);
+            this.boundImportsDirectory.setSize(0);
+
+            this.importTableAddressDirectory.setVirtualAddress(0);
+            this.importTableAddressDirectory.setSize(0);
+
+            // null as default
+            this.delayLoadDescriptorDirectory.setVirtualAddress(0);
+            this.delayLoadDescriptorDirectory.setSize(0);
+
+            // defined by the user if is .NET executable
+            this.netHeaderDirectory.setVirtualAddress(0);
+            this.netHeaderDirectory.setSize(0);
+
+            int sizeTmp = headerBaseAddress;
+
+            entries.ForEach(e => sizeTmp += (((int)e.getEntrySize()) / 8) * 2);
+
+            this.endOfHeader = sizeTmp + 0x8;
+        }
+
+        private void setupStruct()
+        {
+            // TODO : clear the code
+
+            // 16 dirs in PE files
             // we don't care about x32
 
             this.exportDirectory = new DataDirectory(dirs, new DataEntry(entries, true, "exportDirectory", headerBaseAddress, 2, EntrySize._32Bits));
@@ -88,18 +187,6 @@ namespace Serana.Engine.Headers
             this.importTableAddressDirectory = new DataDirectory(dirs, new DataEntry(entries, true, "importTableAddressDirectory", headerBaseAddress, 2, EntrySize._32Bits));
             this.delayLoadDescriptorDirectory = new DataDirectory(dirs, new DataEntry(entries, true, "delayLoadDescriptorDirectory", headerBaseAddress, 2, EntrySize._32Bits));
             this.netHeaderDirectory = new DataDirectory(dirs, new DataEntry(entries, true, "netHeaderDirectory", headerBaseAddress, 2, EntrySize._32Bits));
-
-            // init values
-            foreach (var item in entries)
-            {
-                item.readValue(this.reader);
-            }
-
-            int sizeTmp = headerBaseAddress;
-
-            entries.ForEach(e => sizeTmp += (((int)e.getEntrySize()) / 8)*2);
-
-            this.endOfHeader = sizeTmp + 0x8;
         }
 
         public List<byte> export()

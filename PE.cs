@@ -1,5 +1,5 @@
 ﻿/**
- * Serana - Copyright (c) 2018 - 2019 r0da [r0da@protonmail.ch]
+ * Serana - Copyright (c) 2018 - 2020 r0da [r0da@protonmail.ch]
  *
  * This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
  * To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ or send a letter to
@@ -29,38 +29,58 @@ using Serana.Engine.Resource;
 using Serana.Engine.Section;
 using Serana.Engine.Streams;
 using Serana.Engine.Exceptions;
+using Serana.Engine.Import;
 
 using System.Collections.Generic;
 using System.IO;
 using System;
-using System.Diagnostics;
 
 namespace Serana.Engine
 {
     public class PE
     {
-        public readonly Header header;
+        /// <summary>
+        /// True if the PE object is not loaded from a file
+        /// </summary>
+        public readonly bool isMemoryPE;
 
-        public readonly Resources resources;
+        /// <summary>
+        /// The header object of the PE file
+        /// </summary>
+        public Header header;
 
-        public readonly Sections sections;
+        public Resources resources;
+
+        public Sections sections;
+
+        public Imports imports;
 
         private Reader reader;
 
         public readonly string fileName;
 
         // TODO : BIG FILES
-        public readonly int endOfFile;
+        public readonly int endOfData;
 
+        /// <summary>
+        /// True if there is more data after the sections
+        /// </summary>
         public readonly bool EOFOverflow = false;
 
-        // TODO : BIG FILES
+        /// <summary>
+        /// Size of the overflow data
+        /// TODO : BIG FILES
+        /// </summary>
         public readonly int overflowSize = 0;
 
+        /// <summary>
+        /// Create a PE object from a file
+        /// </summary>
+        /// <param name="filePath"></param>
         public PE(string filePath)
         { 
             if (!File.Exists(filePath))
-                throw new FileNotFoundException("Fail to open the executable file");
+                throw new FileNotFoundException("Fail to open the executable");
 
             this.fileName = new FileInfo(filePath).Name;
 
@@ -70,38 +90,91 @@ namespace Serana.Engine
 
             this.sections = new Sections(this.reader, this.header);
 
-            SectionEntry lastEntry = this.sections.sectionEntries[this.sections.sectionCount - 1];
+            this.imports = new Imports(this.reader, this.header, this.sections);
 
-            this.endOfFile = lastEntry.pointerToRawData.getValue() + lastEntry.sizeOfRawData.getValue();
+            SectionEntry lastEntry = this.sections.getLastEntry();
 
-            this.EOFOverflow = this.endOfFile != (int)this.reader.size();
+            // calculate the EOF address
+            this.endOfData = lastEntry.header.pointerToRawData.getValue() + lastEntry.header.sizeOfRawData.getValue();
+
+            // check if there is more data
+            this.EOFOverflow = this.endOfData != (int)this.reader.size();
 
             if (this.EOFOverflow)
-                overflowSize = (int)this.reader.size() - this.endOfFile;
+                overflowSize = (int)this.reader.size() - this.endOfData;
+
+            this.isMemoryPE = false;
         }
 
-        private bool isASLR()
+        /// <summary>
+        /// Create a PE object from memory
+        /// </summary>
+        /// <param name="baseOfCode"></param>
+        /// <param name="baseOfData"></param>
+        /// <param name="fileAlignment"></param>
+        /// <param name="sectionAlignment"></param>
+        public PE(int baseOfCode, int baseOfData, int fileAlignment, int sectionAlignment)
         {
-            // TODO : Make it work because it's not the right way to detect it :D
-            // TODO : TypeEntry<DllCharacteristics>
+            if (baseOfCode > baseOfData)
+                throw new Exception("baseOfCode is upper than baseOfData");
 
-            int part1 = (((this.header.optionalHeader.DLLCharacteristics.getValue() / 16) % 16) << 4);
+            if (sectionAlignment < fileAlignment)
+                throw new Exception("fileAlignment is upper than sectionAlignment");
 
-            //if (part1 == (int)DllCharacteristics.DYNAMIC_BASE)
-            //    return true;
+            this.isMemoryPE = true;
 
-            return false;
+            // create a default header
+            this.header = new Header(baseOfCode, baseOfData, fileAlignment, sectionAlignment);
+
+            this.sections = new Sections(this.header);
+
+            // TODO : 
+            //this.imports = new Imports(this.reader, this.header, this.sections);
         }
 
+        /// <summary>
+        /// Indicate if ASLR is enable in the file
+        /// </summary>
+        /// <returns>True if ASLR is enable</returns>
+        public bool isASLR()
+        {
+            return ((this.header.optionalHeader.DLLCharacteristics.getValue()) & (int)DllCharacteristics.DYNAMIC_BASE) > 0;
+        }
+
+        /// <summary>
+        /// Indicate if DEP is enable in the file
+        /// </summary>
+        /// <returns>True if DEP is enable</returns>
+        public bool isDEP()
+        {
+            return ((this.header.optionalHeader.DLLCharacteristics.getValue()) & (int)DllCharacteristics.NX_COMPAT) > 0;
+        }
+
+        /// <summary>
+        /// Set and calculate the file checksum
+        /// </summary>
+        public void fixChecksum()
+        {
+            // TODO
+        }
+
+        /// <summary>
+        /// Export raw bytes if the executable
+        /// </summary>
+        /// <returns>Array of byte representing the executable</returns>
         public List<byte> export()
         {
             List<byte> peBuffer = new List<byte>();
 
-            // adding Header
+            // adding Commun Headers
             Utils.addArrayToList<byte>(peBuffer, this.header.export().ToArray());
 
+            // adding Section Headers
+            Utils.addArrayToList<byte>(peBuffer, this.sections.exportHeaders().ToArray());
+
+            // TODO : handle imports
             // adding Sections
-            Utils.addArrayToList<byte>(peBuffer, this.sections.export(peBuffer.Count).ToArray());
+            Utils.addArrayToList<byte>(peBuffer, this.sections.exportSectionsData().ToArray());
 
             // adding overflowed data
             if(EOFOverflow)
@@ -110,17 +183,28 @@ namespace Serana.Engine
             return peBuffer;
         }
 
+        /// <summary>
+        /// Return overflowed data
+        /// </summary>
+        /// <returns>Array of byte of overflowed data</returns>
         public byte[] overflowData()
         {
-            if (!EOFOverflow)
+            if (!this.EOFOverflow)
                 throw new NoOverflowDataException();
 
-            return this.reader.readBytes(this.endOfFile, this.overflowSize);
+            if (!this.isMemoryPE)
+                throw new Exception("Overflow data is not yet supported");
+
+            return this.reader.readBytes(this.endOfData, this.overflowSize);
         }
 
+        /// <summary>
+        /// Dispose the stream
+        /// </summary>
         public void Dispose()
         {
-            this.reader.Dispose();
+            if(!this.isMemoryPE)
+                this.reader.Dispose();
         }
     }
 }

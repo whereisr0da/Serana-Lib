@@ -1,5 +1,5 @@
 ﻿/**
- * Serana - Copyright (c) 2018 - 2019 r0da [r0da@protonmail.ch]
+ * Serana - Copyright (c) 2018 - 2020 r0da [r0da@protonmail.ch]
  *
  * This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
  * To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ or send a letter to
@@ -24,34 +24,43 @@
  */
 
 using Serana.Engine.Headers.Types;
+using Serana.Engine.Streams;
+using System;
 using System.Collections.Generic;
 
 namespace Serana.Engine.Headers
 {
     public class DataDirectory
     {
-        public readonly DataEntry entry;
-
-        public DataDirectory(DataEntry entry)
-        {
-            this.entry = entry;
-        }
+        public DataEntry entry;
 
         public DataDirectory(List<DataDirectory> list, DataEntry entry)
         {
             this.entry = entry;
+
+            this.entry.values32 = new Int32[2];
 
             list.Add(this);
         }
 
         public int getVirtualAddress()
         {
-            return (int)this.entry.values[0];
+            return this.entry.values32[0];
         }
 
         public int getSize()
         {
-            return (int)this.entry.values[1];
+            return this.entry.values32[1];
+        }
+
+        public void setVirtualAddress(Int32 value)
+        {
+            this.entry.values32[0] = value;
+        }
+
+        public void setSize(Int32 value)
+        {
+            this.entry.values32[1] = value;
         }
     }
 }

@@ -1,5 +1,5 @@
 ﻿/**
- * Serana - Copyright (c) 2018 - 2020 r0da [r0da@protonmail.ch]
+ * Serana - Copyright (c) 2018 - 2019 r0da [r0da@protonmail.ch]
  *
  * This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
  * To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ or send a letter to
@@ -23,11 +23,24 @@
  * No warranties are given.
  */
 
-namespace Serana.Engine.Headers
+namespace Serana.Engine.Headers.Types
 {
-    public static class HeaderSymbols
+    public enum Characteristics : int
     {
-        public static readonly byte[] MSDOS_HEADER = new byte[] { 0x4D, 0x5A };
-        public static readonly byte[] PE_HEADER = new byte[] { 0x50, 0x45, 0x00, 0x00 };
+        IMAGE_FILE_RELOCS_STRIPPED = 0x0001,
+        IMAGE_FILE_EXECUTABLE_IMAGE = 0x0002,
+        IMAGE_FILE_LINE_NUMS_STRIPPED = 0x0004,
+        IMAGE_FILE_LOCAL_SYMS_STRIPPED = 0x0008,
+        IMAGE_FILE_AGGRESSIVE_WS_TRIM = 0x0010,
+        IMAGE_FILE_LARGE_ADDRESS_AWARE = 0x0020,
+        IMAGE_FILE_BYTES_REVERSED_LO = 0x0080,
+        IMAGE_FILE_32BIT_MACHINE = 0x0100,
+        IMAGE_FILE_DEBUG_STRIPPED = 0x0200,
+        IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP = 0x0400,
+        IMAGE_FILE_NET_RUN_FROM_SWAP = 0x0800,
+        IMAGE_FILE_SYSTEM = 0x1000,
+        IMAGE_FILE_DLL = 0x2000,
+        IMAGE_FILE_UP_SYSTEM_ONLY = 0x4000,
+        IMAGE_FILE_BYTES_REVERSED_HI = 0x8000
     }
 }

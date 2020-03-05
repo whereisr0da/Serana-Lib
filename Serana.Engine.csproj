@@ -45,8 +45,8 @@
     <Compile Include="Exceptions\BadPeHeaderException.cs" />
     <Compile Include="Exceptions\FailToOpenException.cs" />
     <Compile Include="Exceptions\NoOverflowDataException.cs" />
+    <Compile Include="Headers\Types\Characteristics.cs" />
     <Compile Include="Headers\Types\DllCharacteristics.cs" />
-    <Compile Include="Headers\Types\Entries\StructEntry.cs" />
     <Compile Include="Headers\DataDirectory.cs" />
     <Compile Include="Headers\DataDirectoryHeader.cs" />
     <Compile Include="Headers\DOS_Header.cs" />
@@ -58,9 +58,14 @@
     <Compile Include="Headers\PE_Header.cs" />
     <Compile Include="Headers\Types\Entries\DataEntry.cs" />
     <Compile Include="Headers\Types\Entries\EntrySize.cs" />
+    <Compile Include="Headers\Types\Entries\NumericUnsignedEntry.cs" />
     <Compile Include="Headers\Types\Machines.cs" />
+    <Compile Include="Headers\Types\MagicNumber.cs" />
     <Compile Include="Headers\Types\SubSystem.cs" />
     <Compile Include="Headers\Types\Entries\TypeEntry.cs" />
+    <Compile Include="Import\Import.cs" />
+    <Compile Include="Import\ImportAddressTable.cs" />
+    <Compile Include="Import\ImportDirectory.cs" />
     <Compile Include="PE.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Resource\ResourceEntry.cs" />
@@ -70,15 +75,17 @@
     <Compile Include="Section\DataSection.cs" />
     <Compile Include="Section\ResourceSection.cs" />
     <Compile Include="Section\SectionEntry.cs" />
+    <Compile Include="Section\SectionHeader.cs" />
     <Compile Include="Section\Sections.cs" />
     <Compile Include="Section\SectionSymbols.cs" />
+    <Compile Include="Section\Types\SectionFlags.cs" />
+    <Compile Include="Section\Types\SectionTypes.cs" />
     <Compile Include="Streams\Reader.cs" />
     <Compile Include="Streams\Utils.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Certificat\" />
     <Folder Include="Export\" />
-    <Folder Include="Import\" />
-    <Folder Include="Section\Types\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

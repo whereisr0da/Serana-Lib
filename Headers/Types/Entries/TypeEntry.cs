@@ -55,11 +55,25 @@ namespace Serana.Engine.Headers.Types
             this.is32bit = is32bit;
 
             if (list.Count < 1)
+            {
                 this.offset = offset;
+            }
+
+            // insure conditions check order
             else
             {
-                Entry lastEntry = list[list.Count - 1];
-                this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                Entry lastEntry = ((Entry)list[list.Count - 1]);
+
+                if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                {
+                    DataEntry lastEntryData = (DataEntry)lastEntry;
+
+                    this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                }
+                else
+                {
+                    this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                }
             }
 
             this.size = size;
@@ -74,11 +88,25 @@ namespace Serana.Engine.Headers.Types
             this.is32bit = is32bit;
 
             if (list.Count < 1)
+            {
                 this.offset = offset;
+            }
+
+            // insure conditions check order
             else
             {
-                Entry lastEntry = list[list.Count - 1];
-                this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                Entry lastEntry = ((Entry)list[list.Count - 1]);
+
+                if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                {
+                    DataEntry lastEntryData = (DataEntry)lastEntry;
+
+                    this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                }
+                else
+                {
+                    this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                }
             }
 
             this.size = size32;
@@ -87,6 +115,13 @@ namespace Serana.Engine.Headers.Types
             list.Add(this);
 
             this.changeFor64 = true;
+        }
+
+        public void setValue(T value)
+        {
+            // TODO : x64
+
+            this.value = value;
         }
 
         public int getOffset()
