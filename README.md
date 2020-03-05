@@ -1,4 +1,4 @@
-# Serana
+# Serana 0.2
 
 Serana is a .NET library that can parse windows executables
 
@@ -8,7 +8,7 @@ So you can get any informations of a PE structure and modify each one of them (i
 
 These objects could be exported (raw file buffers) separately after modifying them or export the entire executable
 
-## Why
+## Why ?
 
 I know, I know ... there is a lot of library like this.
 
@@ -16,11 +16,8 @@ I like use pefile in python, but in .NET there is not that much about PE files, 
 
 I made this to improve my PE knowledge.
 
-## Currently
 
-Now this library support only the reading / parsing of executables. So you can use this to take informations about all structures of the PE. The export function work but its useless because nothing can be modify.
-
-## How
+## How ?
 
 You can read informations about the executable
 ```c#
@@ -71,7 +68,26 @@ PE pe = new PE("app.exe");
 // get the exported optional header raw buffer
 byte[] optionalHeader = pe.header.optionalHeader.export().ToArray<byte>();
 
-// modify something... (in the future)
+// doing something with it ...
+
+pe.Dispose();
+```
+
+You can modify the executable
+```c#
+PE pe = new PE("app.exe");
+
+// update the executable subsystem
+pe.header.optionalHeader.peSubSystem.setValue(SubSystem.NATIVE_WINDOWS);
+
+// fix the stack size
+pe.header.optionalHeader.SizeOfStackReserve.setValue(0x1000);
+
+// get some data
+byte[] virtualisedCode = ...
+
+// add a new section
+pe.sections.addSection(".vlizer", virtualisedCode, SectionTypes.DATA_SECTION);
 
 // write the output executable
 File.WriteAllBytes("appModded.exe", pe.export().ToArray<byte>());
@@ -79,14 +95,33 @@ File.WriteAllBytes("appModded.exe", pe.export().ToArray<byte>());
 pe.Dispose();
 ```
 
+## Changelog
+
+Version 0.2
+
+* Export after parse x86 / x64 work
+* Implement modification 😃
+* Implement PE file creation from memory
+* Implement section adding (buggy)
+* Improved x64 support
+* Code cleaning
+* More comments / documentation
+* More improvements..
+
+Version 0.1
+
+* Initial release
+
 ## Issues
 
 This library is IN BETA, so bugs can be found.
 
 ## TODO
 
-- Some fix
-- Support modification (not yet)
+- Handle imports, export
+- Fix section adding
+- Some other fix
+- DOCUMENTATION !!!
 
 ## License
 [Creative Commons Attribution-NonCommercial-NoDerivatives](http://creativecommons.org/licenses/by-nc-nd/4.0/)
