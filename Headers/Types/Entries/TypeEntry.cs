@@ -1,5 +1,5 @@
 ﻿/**
- * Serana - Copyright (c) 2018 - 2019 r0da [r0da@protonmail.ch]
+ * Serana - Copyright (c) 2018 - 2020 r0da [r0da@protonmail.ch]
  *
  * This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
  * To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ or send a letter to
@@ -54,31 +54,38 @@ namespace Serana.Engine.Headers.Types
 
             this.is32bit = is32bit;
 
-            if (list.Count < 1)
+            if(list == null)
             {
                 this.offset = offset;
             }
-
-            // insure conditions check order
             else
             {
-                Entry lastEntry = ((Entry)list[list.Count - 1]);
-
-                if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                if (list.Count < 1)
                 {
-                    DataEntry lastEntryData = (DataEntry)lastEntry;
-
-                    this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                    this.offset = offset;
                 }
+
+                // insure conditions check order
                 else
                 {
-                    this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                    Entry lastEntry = ((Entry)list[list.Count - 1]);
+
+                    if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                    {
+                        DataEntry lastEntryData = (DataEntry)lastEntry;
+
+                        this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                    }
+                    else
+                    {
+                        this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                    }
                 }
+
+                list.Add(this);
             }
 
             this.size = size;
-
-            list.Add(this);
         }
 
         public TypeEntry(List<Entry> list, bool is32bit, string name, int offset, EntrySize size32, EntrySize size64)
@@ -87,32 +94,39 @@ namespace Serana.Engine.Headers.Types
 
             this.is32bit = is32bit;
 
-            if (list.Count < 1)
+            if (list == null)
             {
                 this.offset = offset;
             }
-
-            // insure conditions check order
             else
             {
-                Entry lastEntry = ((Entry)list[list.Count - 1]);
-
-                if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                if (list.Count < 1)
                 {
-                    DataEntry lastEntryData = (DataEntry)lastEntry;
-
-                    this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                    this.offset = offset;
                 }
+
+                // insure conditions check order
                 else
                 {
-                    this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                    Entry lastEntry = ((Entry)list[list.Count - 1]);
+
+                    if (lastEntry.GetType().Equals(typeof(DataEntry)))
+                    {
+                        DataEntry lastEntryData = (DataEntry)lastEntry;
+
+                        this.offset = lastEntryData.getOffset() + lastEntryData.getSize();
+                    }
+                    else
+                    {
+                        this.offset = lastEntry.getOffset() + ((int)lastEntry.getSize() / 8);
+                    }
                 }
+
+                list.Add(this);
             }
 
             this.size = size32;
             this.size64 = size64;
-
-            list.Add(this);
 
             this.changeFor64 = true;
         }

@@ -1,4 +1,4 @@
-# Serana 0.2
+# Serana 0.3
 
 Serana is a .NET library that can parse windows executables
 
@@ -57,7 +57,7 @@ foreach (SectionEntry section in pe.sections.sectionEntries)
       + " (size : 0x" + size.ToString("X") + ")");
 }
 
-// close the stream
+// close handles
 pe.Dispose();
 ```
 
@@ -70,6 +70,7 @@ byte[] optionalHeader = pe.header.optionalHeader.export().ToArray<byte>();
 
 // doing something with it ...
 
+// close handles
 pe.Dispose();
 ```
 
@@ -84,18 +85,26 @@ pe.header.optionalHeader.peSubSystem.setValue(SubSystem.NATIVE_WINDOWS);
 pe.header.optionalHeader.SizeOfStackReserve.setValue(0x1000);
 
 // get some data
-byte[] virtualisedCode = ...
+byte[] virtualizedCode = ...
 
 // add a new section
 pe.sections.addSection(".vlizer", virtualisedCode, SectionTypes.DATA_SECTION);
 
 // write the output executable
-File.WriteAllBytes("appModded.exe", pe.export().ToArray<byte>());
+File.WriteAllBytes("app_obfuscated.exe", pe.export().ToArray<byte>());
 
+// close handles
 pe.Dispose();
 ```
 
 ## Changelog
+
+Version 0.3
+
+* Resource parser implemented (modifications not available)
+* Section adding fixed for x86 (still buggy for x64)
+* Some functions added
+* Some bug fixed
 
 Version 0.2
 
@@ -106,7 +115,7 @@ Version 0.2
 * Improved x64 support
 * Code cleaning
 * More comments / documentation
-* More improvements..
+* More improvements ...
 
 Version 0.1
 
@@ -118,8 +127,9 @@ This library is IN BETA, so bugs can be found.
 
 ## TODO
 
-- Handle imports, export
-- Fix section adding
+- Handle imports, exports
+- Fix export problems for x64
+- Fix section adding for x64
 - Some other fix
 - DOCUMENTATION !!!
 

@@ -108,6 +108,49 @@ namespace Serana.Engine.Section
         }
 
         /// <summary>
+        /// Get the resource section if exists
+        /// </summary>
+        /// <returns>The resource section entry</returns>
+        public SectionEntry getResourceSection()
+        {
+            int resourceDirVirtualAddress = this.header.dataDirectoryHeader.resourceDirectory.getVirtualAddress();
+            int resourceDirSize = this.header.dataDirectoryHeader.resourceDirectory.getSize();
+
+            if (resourceDirVirtualAddress == 0 || resourceDirSize == 0)
+                return null;
+
+            return getSectionFromVirtualAddress(resourceDirVirtualAddress);
+        }
+
+        /// <summary>
+        /// Checks if a file offset is in the section
+        /// </summary>
+        /// <param name="offset"></param>
+        /// <param name="section"></param>
+        /// <returns></returns>
+        public bool isFileOffsetInSection(int offset, SectionEntry section)
+        {
+            return offset >= section.header.pointerToRawData.getValue() && offset <= (section.header.pointerToRawData.getValue() + section.header.sizeOfRawData.getValue());
+        }
+
+        /// <summary>
+        /// Checks if a memory offset is in the section
+        /// NOTE : useless if ASLR
+        /// </summary>
+        /// <param name="offset"></param>
+        /// <param name="section"></param>
+        /// <returns></returns>
+        public bool isVirtualAddressInSection(int offset, SectionEntry section)
+        {
+            return offset >= section.header.virtualAddress.getValue() && offset <= (section.header.virtualAddress.getValue() + section.header.virtualSize.getValue());
+        }
+
+        public SectionEntry getEntrypointSection()
+        {
+            return getSectionFromVirtualAddress(this.header.optionalHeader.AddressOfEntryPoint.getValue());
+        }
+
+        /// <summary>
         /// Get all code typed sections
         /// </summary>
         /// <returns>List of code typed section</returns>
@@ -135,12 +178,12 @@ namespace Serana.Engine.Section
         /// <returns></returns>
         public SectionEntry addSection(string name, byte[] data, SectionTypes type)
         {
-            // TODO : care about the file alignment
-
             // setup the virtual address of the section
-            int virtualAddressBase = type == SectionTypes.CODE_SECTION ?
-                this.header.optionalHeader.BaseOfCode.getValue() :
-                this.header.optionalHeader.BaseOfData.getValue();
+            int virtualAddressBase = this.header.optionalHeader.BaseOfCode.getValue();
+
+            // BaseOfData doesn't exist in x64
+            if (this.header.is32Bit)
+                virtualAddressBase = type == SectionTypes.CODE_SECTION ? this.header.optionalHeader.BaseOfCode.getValue() : this.header.optionalHeader.BaseOfData.getValue();
 
             // create the section
             SectionEntry section = new SectionEntry(this.entries, this.header);
@@ -153,15 +196,6 @@ namespace Serana.Engine.Section
             // there is already a section
             if (!isFirstSection)
             {
-                // fix all old section's headers
-                foreach (SectionEntry item in this.sectionEntries)
-                {
-                    // we added a new header in the section headers
-                    // so we have to fix all raw addresses 
-                    // by incresing all pointers by the length of the new header
-                    item.header.pointerToRawData += section.header.export().Count;
-                }
-
                 SectionEntry lastSection = this.getLastEntry();
 
                 int newSectionAddress = lastSection.header.pointerToRawData.getValue() 
@@ -190,48 +224,11 @@ namespace Serana.Engine.Section
             section.header.numberOfLinenumbers.setValue(0);
 
             // set the virtual address
-            // TODO : clean the code
             if (!isFirstSection)
             {
-                bool existCodeSection = getCodeSections().Count > 0;
-                bool existDataSection = getDataSections().Count > 0;
+                SectionEntry lastSection = this.getLastEntry();
 
-                // fix 64 (no base of data)
-
-                int virtualAddress = 0;
-
-                // TODO : clean the code
-                if ((existCodeSection && type == SectionTypes.CODE_SECTION) ||
-                    (existDataSection && type == SectionTypes.DATA_SECTION))
-                {
-                    virtualAddress = calcVirtualAddressDynamic(type);
-                }
-                else if((existCodeSection && type == SectionTypes.DATA_SECTION) ||
-                        (existDataSection && type == SectionTypes.CODE_SECTION))
-                {
-                    if ((existDataSection && type == SectionTypes.DATA_SECTION) ||
-                        (existCodeSection && type == SectionTypes.CODE_SECTION))
-                    {
-                        virtualAddress = calcVirtualAddressDynamic(type);
-                    }
-
-                    else if ((type == SectionTypes.CODE_SECTION && !existCodeSection) ||
-                             (type == SectionTypes.DATA_SECTION && !existDataSection))
-                    {
-                        virtualAddress = virtualAddressBase;
-                    }
-                    else
-                    {
-                        throw new Exception("New case not handled, please report me it");
-                    }
-                }
-                else
-                {
-                    throw new Exception("New case not handled, please report me it");
-                }
-
-                if(virtualAddress == 0)
-                    throw new Exception("New case not handled, please report me it");
+                int virtualAddress = calcVirtualAddress(lastSection.header.virtualAddress.getValue(), lastSection.header.virtualSize.getValue(), this.header.optionalHeader.SectionAlignment.getValue());
 
                 section.header.virtualAddress.setValue(virtualAddress);
             }
@@ -290,9 +287,14 @@ namespace Serana.Engine.Section
         /// <param name="type">The section type</param>
         private void updateHeader(SectionTypes type)
         {
-            int virtualAddressBase = type == SectionTypes.CODE_SECTION ?
-                this.header.optionalHeader.BaseOfCode.getValue() :
-                this.header.optionalHeader.BaseOfData.getValue();
+            int virtualAddressBase = this.header.optionalHeader.BaseOfCode.getValue();
+
+            // BaseOfData doesn't exist in x64
+            if (this.header.is32Bit)
+            {
+                // select the virtual address from section type
+                virtualAddressBase = type == SectionTypes.CODE_SECTION ? this.header.optionalHeader.BaseOfCode.getValue() : this.header.optionalHeader.BaseOfData.getValue();
+            }
 
             bool isFirstSection = this.header.peHeader.NumberOfSection.getValue() < 1;
 
@@ -302,7 +304,7 @@ namespace Serana.Engine.Section
             int sizeOfAllCodeSections = 0;
             int sizeOfAllDataSections = 0;
 
-            // collects all sizes
+            // collects all raw section sizes
             getCodeSections().ForEach(s => sizeOfAllCodeSections += s.header.sizeOfRawData.getValue());
             getDataSections().ForEach(s => sizeOfAllDataSections += s.header.sizeOfRawData.getValue());
 
@@ -310,14 +312,15 @@ namespace Serana.Engine.Section
             this.header.optionalHeader.SizeOfCode.setValue(sizeOfAllCodeSections);
             this.header.optionalHeader.SizeOfInitializedData.setValue(sizeOfAllDataSections);
 
-            // update the the image size
+            // update the image size
             if (!isFirstSection)
             {
                 // last section virtualAddress = size of virtual section's allocation segment
                 // + padding due to the last section size
 
                 int sizeOfImage = getLastEntry().header.virtualAddress.getValue() + getLastEntry().header.virtualSize.getValue();
-
+                
+                // update the image size
                 this.header.optionalHeader.SizeOfImage.setValue(sizeOfImage);
             }
             else
@@ -327,10 +330,20 @@ namespace Serana.Engine.Section
             }
         }
 
-        private int calcVirtualAddressPadding(SectionTypes type)
+        /// <summary>
+        /// Calculating the next section virtual address
+        /// TODO : add padding
+        /// </summary>
+        /// <param name="lastVirtualAddress"></param>
+        /// <param name="lastVirtualSize"></param>
+        /// <param name="alignment"></param>
+        /// <returns></returns>
+        private int calcVirtualAddress(int lastVirtualAddress, int lastVirtualSize, int alignment)
         {
-            List<SectionEntry> selectedSections = type == SectionTypes.CODE_SECTION ? getCodeSections() : getDataSections();
+            /*
 
+            List<SectionEntry> selectedSections = type == SectionTypes.CODE_SECTION ? getCodeSections() : getDataSections();
+           
             SectionEntry lastSection = selectedSections[selectedSections.Count - 1];
 
             // by default the padding is 1000
@@ -343,9 +356,14 @@ namespace Serana.Engine.Section
                 padding = ((int)paddingAmount) * this.header.optionalHeader.SectionAlignment.getValue();
             }
 
-            return padding;
+            */
+
+            // A better implementation
+            return lastVirtualAddress + (((lastVirtualSize - 1) / alignment + 1) * alignment);
         }
 
+        /*
+        // I keep it for later
         // TODO : clean the code
         private int calcVirtualAddressDynamic(SectionTypes type)
         {
@@ -355,6 +373,7 @@ namespace Serana.Engine.Section
 
             return lastSection.header.virtualAddress.getValue() + calcVirtualAddressPadding(type);
         }
+        */
 
         /// <summary>
         /// Set the entrypoint in the executable
@@ -506,6 +525,25 @@ namespace Serana.Engine.Section
             });
 
             return section;
-        } 
+        }
+
+        /// <summary>
+        /// Get a section from a file offset
+        /// </summary>
+        /// <param name="address">The file address</param>
+        /// <returns>The section that contain this address, return null if not found</returns>
+        public SectionEntry getSectionFromFileAddress(int address)
+        {
+            SectionEntry section = null;
+
+            this.sectionEntries.ForEach(s => {
+
+                if (address >= s.header.pointerToRawData.getValue() &&
+                    address < (s.header.pointerToRawData.getValue() + s.header.sizeOfRawData.getValue()))
+                { section = s; }
+            });
+
+            return section;
+        }
     }
 }

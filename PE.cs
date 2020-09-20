@@ -49,11 +49,11 @@ namespace Serana.Engine
         /// </summary>
         public Header header;
 
-        public Resources resources;
-
         public Sections sections;
 
         public Imports imports;
+
+        public Resources resources;
 
         private Reader reader;
 
@@ -90,7 +90,14 @@ namespace Serana.Engine
 
             this.sections = new Sections(this.reader, this.header);
 
-            this.imports = new Imports(this.reader, this.header, this.sections);
+            // some times, executable could be import less (nasm compiled asm)
+            // so idk how to handle this ...
+            // throw new Exception("The import address table is not in any sections");
+            if (isImportPresent())
+                this.imports = new Imports(this.reader, this.header, this.sections);
+
+            if(isResourcePresent())
+                this.resources = new Resources(this.reader, this.header, this.sections);
 
             SectionEntry lastEntry = this.sections.getLastEntry();
 
@@ -104,6 +111,20 @@ namespace Serana.Engine
                 overflowSize = (int)this.reader.size() - this.endOfData;
 
             this.isMemoryPE = false;
+        }
+
+        /// <summary>
+        /// Indicate if import information exists
+        /// </summary>
+        /// <returns>True if import directory is valid</returns>
+        public bool isImportPresent()
+        {
+            var importVirtualAddress = this.header.dataDirectoryHeader.importTableAddressDirectory.getVirtualAddress();
+
+            // get the section that content the import address table
+            SectionEntry importAddressTableSection = this.sections.getSectionFromVirtualAddress(importVirtualAddress);
+
+            return importAddressTableSection != null;
         }
 
         /// <summary>
@@ -128,8 +149,11 @@ namespace Serana.Engine
 
             this.sections = new Sections(this.header);
 
-            // TODO : 
+            // TODO : handle imports
             //this.imports = new Imports(this.reader, this.header, this.sections);
+
+            // TODO : handle resources
+            //this.resources = new Resources(this.reader, this.header, this.sections);
         }
 
         /// <summary>
@@ -148,6 +172,36 @@ namespace Serana.Engine
         public bool isDEP()
         {
             return ((this.header.optionalHeader.DLLCharacteristics.getValue()) & (int)DllCharacteristics.NX_COMPAT) > 0;
+        }
+
+        /// <summary>
+        /// Indicate if there is resources in the file
+        /// </summary>
+        /// <returns>True if resources is the executable</returns>
+        public bool isResourcePresent()
+        {
+            return this.header.dataDirectoryHeader.resourceDirectory.getVirtualAddress() > 0
+                && this.header.dataDirectoryHeader.resourceDirectory.getSize() > 0;
+        }
+
+        /// <summary>
+        /// Indicate if the executable is .NET
+        /// </summary>
+        /// <returns>True if is .NET</returns>
+        public bool isDOTNET()
+        {
+            return this.header.dataDirectoryHeader.netHeaderDirectory.getVirtualAddress() > 0 
+                && this.header.dataDirectoryHeader.netHeaderDirectory.getSize() > 0;
+        }
+
+        /// <summary>
+        /// Indicate if PE is 32 bit
+        /// NOTE : Simple proxy
+        /// </summary>
+        /// <returns>True if is 32 bit</returns>
+        public bool is32Bit()
+        {
+            return this.header.is32Bit;
         }
 
         /// <summary>
@@ -173,6 +227,8 @@ namespace Serana.Engine
             Utils.addArrayToList<byte>(peBuffer, this.sections.exportHeaders().ToArray());
 
             // TODO : handle imports
+            // TODO : handle resources
+
             // adding Sections
             Utils.addArrayToList<byte>(peBuffer, this.sections.exportSectionsData().ToArray());
 
@@ -192,7 +248,7 @@ namespace Serana.Engine
             if (!this.EOFOverflow)
                 throw new NoOverflowDataException();
 
-            if (!this.isMemoryPE)
+            if (this.isMemoryPE)
                 throw new Exception("Overflow data is not yet supported");
 
             return this.reader.readBytes(this.endOfData, this.overflowSize);

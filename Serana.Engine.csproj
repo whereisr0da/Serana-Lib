@@ -17,7 +17,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>..\..\Build\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -25,7 +25,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>..\..\Build\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -68,9 +68,11 @@
     <Compile Include="Import\ImportDirectory.cs" />
     <Compile Include="PE.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Resource\ResourceEntry.cs" />
-    <Compile Include="Resource\ResourceEntryInterface.cs" />
+    <Compile Include="Resource\ResourceDataEntry.cs" />
+    <Compile Include="Resource\ResourceDirectoryEntry.cs" />
+    <Compile Include="Resource\ResourceDirectoryTable.cs" />
     <Compile Include="Resource\Resources.cs" />
+    <Compile Include="Resource\Types\ResourceTypes.cs" />
     <Compile Include="Section\CodeSection.cs" />
     <Compile Include="Section\DataSection.cs" />
     <Compile Include="Section\ResourceSection.cs" />

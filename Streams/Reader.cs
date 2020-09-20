@@ -85,9 +85,36 @@ namespace Serana.Engine.Streams
             return result;
         }
 
+        public char[] readChars(int offset, int count)
+        {
+            char[] result = new char[count];
+
+            this.buffer.BaseStream.Position = offset;
+
+            for (int i = 0; i < count; i++)
+            {
+                result[i] = (char)this.buffer.ReadByte();
+            }
+
+            return result;
+        }
+
+
         public string readString(int offset, int count)
         {
-            return Encoding.UTF8.GetString(readBytes(offset, count));
+            return Encoding.ASCII.GetString(readBytes(offset, count));
+        }
+
+        public string readUnicodeString(int offset, int count)
+        {
+            // C# doesn't have a Unicode to UTF8 function ???
+            // TODO : find a better way to do it
+
+            //char[] unicodeBuffer = readChars(offset, count * 2);
+            //byte[] ASCIIBuffer = Encoding.Convert(Encoding.Unicode, Encoding.ASCII, Encoding.Unicode.GetBytes(unicodeBuffer));
+            //return Encoding.ASCII.GetString(ASCIIBuffer);
+
+            return Encoding.ASCII.GetString(readBytes(offset, count * 2)).Replace("\0","");
         }
 
         public Int32 readInt32(int offset)

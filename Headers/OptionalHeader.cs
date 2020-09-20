@@ -241,7 +241,7 @@ namespace Serana.Engine.Headers
 
             this.is32Bit = this.peHeader.Architecture.value == Machines.INTEL386;
 
-            headerBaseAddress = this.peHeader.headerBaseAddress + this.peHeader.export().Count;
+            headerBaseAddress = this.peHeader.headerBaseAddress + this.peHeader.export().Count - HeaderSymbols.PE_HEADER.Length;
 
             setupStruct();
 
@@ -280,7 +280,7 @@ namespace Serana.Engine.Headers
             // TODO : improve 32 bit detection
             this.is32Bit = this.peHeader.Architecture.value == Machines.INTEL386;
 
-            headerBaseAddress = this.peHeader.headerBaseAddress + this.peHeader.export().Count;
+            headerBaseAddress = this.peHeader.headerBaseAddress + this.peHeader.export().Count - HeaderSymbols.PE_HEADER.Length;
 
             setupStruct();
 
